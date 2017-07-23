@@ -4,12 +4,60 @@ const request = require('request');
 const rp = require('request-promise');
 const TOKEN ="ZBesZ0aHx2yb-JwAY.UIctkt-YpG0WwpePuDTkqe-7KH2p4iLc6xQ6ROCXvxG1xwD2zFbz9A1WHgVZsp2FVfC2h9Q3Wy9rSeOdrkkNV7pw3V-WuuyKm5Bu84qxBbz0rm";
 app.set('port', 1337);
+app.use(express.static("static"));
 
 let auth = {
   Authorization: 'bearer '+TOKEN
 };
-app.get('/', (req,res)=>{
+let cached = null;
+let last_cached_time = null;
+const CACHE_TIMEOUT = 1000*60*24;
+
+app.use((req,res,next)=>{
+  if (req.hostname.indexOf("localhost") > -1 || req.hostname.indexOf("techlaunch") > -1){
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header('Access-Control-Allow-Headers', "Content-Type")
+  }
+	next();
+});
+
+app.get('/api/surveyquestions', (req,res)=>{
+  console.log("Received request for questions");
+  rp({
+    url: 'https://api.surveymonkey.net/v3/surveys/81804596/details',
+    headers: auth
+  })
+  .then(smResp=>{
+    smResp = JSON.parse(smResp);
+    console.log(smResp);
+    res.json(smResp);
+  })
+});
+
+app.get('/api/instructors', (req,res)=>{
+  console.log("Received request for instructors");
+  rp({
+    url: "https://api.surveymonkey.net/v3/surveys/81804596/pages/247249300/questions/983930695",
+    headers: auth
+  })
+  .then(smResp=>{
+    smResp = JSON.parse(smResp);
+    console.log(smResp);
+    let instructors = smResp.answers.choices.reduce((acc,choice)=>{
+      acc[choice.id]=choice.text;
+      return acc;
+    },{});
+    res.json(instructors);
+  })
+});
+
+app.get('/api/surveyresults', (req,res)=>{
   console.log("hi");
+  if (!req.query.forcerefresh){
+    if (cached && typeof last_cached_time == "number" && new Date().getTime() - last_cached_time < CACHE_TIMEOUT){
+      return res.json(cached);
+    }
+  }
   let questions;
   rp({
     url: 'https://api.surveymonkey.net/v3/surveys/81804596/details',
@@ -37,6 +85,8 @@ app.get('/', (req,res)=>{
     return requestAllResponsePages();
   })
   .then(function(allResponses){
+    cached = allResponses;
+    last_cached_time = new Date().getTime();
     res.json(allResponses);
   })
   .catch(err=>{
