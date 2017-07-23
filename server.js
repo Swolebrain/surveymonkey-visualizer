@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const request = require('request');
 const rp = require('request-promise');
-const TOKEN ="ZBesZ0aHx2yb-JwAY.UIctkt-YpG0WwpePuDTkqe-7KH2p4iLc6xQ6ROCXvxG1xwD2zFbz9A1WHgVZsp2FVfC2h9Q3Wy9rSeOdrkkNV7pw3V-WuuyKm5Bu84qxBbz0rm";
+const {TOKEN} = require("./.config.js");
 app.set('port', 1337);
 app.use(express.static("static"));
 
