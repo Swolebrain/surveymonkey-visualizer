@@ -10,8 +10,7 @@ let auth = {
   Authorization: 'bearer '+TOKEN
 };
 let cached = null;
-let last_cached_time = null;
-const CACHE_TIMEOUT = 1000*60*24;
+let last_cached_time = 0;
 
 app.use((req,res,next)=>{
   if (req.hostname.indexOf("localhost") > -1 || req.hostname.indexOf("techlaunch") > -1){
@@ -51,20 +50,35 @@ app.get('/api/instructors', (req,res)=>{
   })
 });
 
+app.get('/api/page1', (req,res)=>{
+  rp({
+    url: 'https://api.surveymonkey.net/v3/surveys/81804596/responses/bulk?per_page=100&start_modified_at='+new Date().toISOString(),
+    headers: auth
+  })
+  .then(smres=>{
+    smres=JSON.parse(smres);
+    res.json(smres);
+  })
+  .catch(err=>{
+    console.log(err);
+    res.sendStatus(500);
+  });
+});
+
 app.get('/api/surveyresults', (req,res)=>{
   console.log("hi");
-  if (!req.query.forcerefresh){
-    if (cached && typeof last_cached_time == "number" && new Date().getTime() - last_cached_time < CACHE_TIMEOUT){
-      return res.json(cached);
-    }
-  }
+  // if (!req.query.forcerefresh){
+  //   if (cached && typeof last_cached_time == "number" && new Date().getTime() - last_cached_time < CACHE_TIMEOUT){
+  //     return res.json(cached);
+  //   }
+  // }
   let questions;
   rp({
     url: 'https://api.surveymonkey.net/v3/surveys/81804596/details',
     headers: auth
   })
   .then(function(smres){
-    console.log("Successfully receives survey details");
+    console.log("Successfully received survey details");
     smres = JSON.parse(smres);
     questions = smres.pages.reduce((acc,pg)=>acc.concat(pg.questions), [])
                     .map(q=>({id:q.id, answers: q.answers, text: q.headings[0].heading}));
@@ -85,8 +99,8 @@ app.get('/api/surveyresults', (req,res)=>{
     return requestAllResponsePages();
   })
   .then(function(allResponses){
+    last_cached_time = new Date();
     cached = allResponses;
-    last_cached_time = new Date().getTime();
     res.json(allResponses);
   })
   .catch(err=>{
@@ -97,6 +111,10 @@ app.get('/api/surveyresults', (req,res)=>{
   function requestAllResponsePages(){
     let responsesUri = 'https://api.surveymonkey.net/v3/surveys/81804596/responses/bulk?per_page=100';
     let responsesDataToReturn;
+    if (cached && last_cached_time){
+      responsesUri += "&start_modified_at="+last_cached_time.toISOString();
+      responsesDataToReturn = cached;
+    }
     return new Promise((resolve, reject)=>{
       rp({
         url: responsesUri,
@@ -106,10 +124,24 @@ app.get('/api/surveyresults', (req,res)=>{
         console.log("Received first responses page");
         let responses = JSON.parse(responsePage1);
         let numPages = Math.ceil(responses.total/responses.per_page);
+        if (numPages === 0){
+          resolve(cached);
+          return;
+        }
         let processedResponsePage = processReponsePage(responses);
         //console.log(processedResponsePage);
-        responsesDataToReturn = processedResponsePage.data;
+        if (cached)
+          responsesDataToReturn = cached.concat(processedResponsePage.data);
+        else
+          responsesDataToReturn = processedResponsePage.data;
+
+        if (numPages === 1){
+          console.log("resolved with first request");
+          resolve(responsesDataToReturn);
+          return;
+        }
         let processedPages = 1;
+        console.log("getting ready to send "+numPages+" more requests");
         for(let i = 2; i<= numPages; i++){
           request({url: responsesUri+"&page="+i, headers: auth}, function(err, res, body){
             let responsePage = JSON.parse(body);
