@@ -101,6 +101,9 @@ app.get('/api/surveyresults', (req,res)=>{
   .then(function(allResponses){
     last_cached_time = new Date();
     cached = allResponses;
+    let stringified = JSON.stringify(allResponses);
+    res.header('content-length', Buffer.byteLength(stringified, 'utf-8'));
+    res.header('Content-Type', 'application/json; charset=utf-8')
     res.json(allResponses);
   })
   .catch(err=>{
