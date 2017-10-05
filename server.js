@@ -3,6 +3,9 @@ const app = express();
 const request = require('request');
 const rp = require('request-promise');
 const {TOKEN} = require("./.config.js");
+const fs = require('fs');
+const https = require('https');
+const http = require('http');
 app.set('port', 1337);
 app.use(express.static("static"));
 
@@ -184,4 +187,32 @@ app.get('/api/surveyresults', (req,res)=>{
 
 });
 
-app.listen(app.get('port'), ()=>console.log(`Server listening on port ${app.get('port')}`));
+function ensureSecure(req, res, next){
+  if(req.secure || req.hostname.indexOf('localhost') >= 0){
+    // OK, continue
+    console.log("secure middleware continuing");
+    return next();
+  };
+  console.log("Secure middleware forwarding to",'https://' + req.hostname + ':1338' + req.url);
+  res.redirect('https://' + req.hostname + ':1338' + req.url); // express 4.x
+};
+
+
+const env = process.env.NODE_ENV || 'dev';
+
+if (env === 'dev'){
+  http.createServer(app)
+  .listen(app.get('port'), ()=>console.log(`Server listening on port ${app.get('port')}`));
+}
+else {
+  let httpsOptions = {
+    key: fs.readFileSync('/etc/letsencrypt/live/apps.techlaunch.io/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/apps.techlaunch.io/fullchain.pem'),
+    ca: fs.readFileSync('/etc/letsencrypt/live/apps.techlaunch.io/chain.pem')
+  };
+  
+  https.createServer(httpsOptions, app)
+    .listen(app.get('port'), ()=>console.log(`Server listening on port ${app.get('port')}`));
+}
+
+

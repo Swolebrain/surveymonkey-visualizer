@@ -20,6 +20,7 @@
   "homepage": "https://github.com/Swolebrain/surveymonkey-visualizer#readme",
   "dependencies": {
     "express": "^4.15.3",
+    "https": "^1.0.0",
     "request": "^2.81.0",
     "request-promise": "^4.2.1"
   },
