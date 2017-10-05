@@ -23,6 +23,8 @@ app.use((req,res,next)=>{
 	next();
 });
 
+app.use(ensureSecure);
+
 app.get('/api/surveyquestions', (req,res)=>{
   console.log("Received request for questions");
   rp({
@@ -193,8 +195,8 @@ function ensureSecure(req, res, next){
     console.log("secure middleware continuing");
     return next();
   };
-  console.log("Secure middleware forwarding to",'https://' + req.hostname + ':1338' + req.url);
-  res.redirect('https://' + req.hostname + ':1338' + req.url); // express 4.x
+  console.log("Secure middleware forwarding to",'https://' + req.hostname + ':' + app.get('port') + req.url);
+  res.redirect('https://' + req.hostname + ":" + app.get('port') + req.url); // express 4.x
 };
 
 
